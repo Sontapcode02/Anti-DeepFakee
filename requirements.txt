@@ -1,0 +1,7 @@
+opencv-python>=3.4.2
+dlib==19.18.0
+numpy==1.22.0
+pillow>=6.2.2
+retina-face>=0.0.13
+grad-cam>=1.4.6
+scipy
