@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Deepfake Detector</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            text-align: center;
+            padding: 50px;
+        }
+
+        .container {
+            background: rgba(255,255,255,0.1);
+            padding: 30px;
+            border-radius: 15px;
+            display: inline-block;
+            width: 400px;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        input[type="file"] {
+            margin: 20px 0;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            background: #00c6ff;
+            color: black;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #00aaff;
+        }
+
+        .result {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+
+        video, img {
+            margin-top: 15px;
+            max-width: 100%;
+            border-radius: 10px;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎭 Deepfake Detector</h1>
+
+    <input type="file" id="fileInput">
+    <br>
+    <button onclick="uploadFile()">Predict</button>
+
+    <div class="preview" id="preview"></div>
+
+    <div class="result" id="result"></div>
+</div>
+
+<script>
+async function uploadFile() {
+    const fileInput = document.getElementById('fileInput');
+    const resultDiv = document.getElementById('result');
+    const previewDiv = document.getElementById('preview');
+
+    const file = fileInput.files[0];
+
+    if (!file) {
+        alert("Chọn file trước!");
+        return;
+    }
+
+    // preview
+    previewDiv.innerHTML = "";
+    if (file.type.startsWith("image")) {
+        previewDiv.innerHTML = `<img src="${URL.createObjectURL(file)}">`;
+    } else if (file.type.startsWith("video")) {
+        previewDiv.innerHTML = `<video controls src="${URL.createObjectURL(file)}"></video>`;
+    }
+
+    resultDiv.innerHTML = "⏳ Đang xử lý...";
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+        const res = await fetch("http://127.0.0.1:8000/predict", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+            resultDiv.innerHTML = "❌ " + data.error;
+            return;
+        }
+
+        resultDiv.innerHTML = `
+            📌 Type: ${data.type} <br>
+            🧠 Label: <b>${data.label}</b> <br>
+            🎯 Confidence: ${(data.confidence * 100).toFixed(2)}% <br>
+            🎞 Frames used: ${data.frames_used || 1}
+        `;
+
+    } catch (err) {
+        resultDiv.innerHTML = "❌ Lỗi kết nối API";
+    }
+}
+</script>
+
+</body>
+</html>
