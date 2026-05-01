@@ -30,7 +30,7 @@ def get_boundingbox(face, width, height, scale=1.3, minsize=None):
     return x1, y1, size_bb
 
 def main(args):
-    print(f"\n🎬 ĐANG TEST VIDEO: {args.video_path} ...")
+    print(f"\n[DANG TEST] VIDEO: {args.video_path} ...")
     
     # 1. KHỞI TẠO VÀ NẠP MÔ HÌNH CHUẨN XÁC
     model = DeepfakeMultiClassModel(image_size=299, num_classes=3)
@@ -49,14 +49,14 @@ def main(args):
     if args.cuda and torch.cuda.is_available():
         model = model.cuda()
     model.eval()
-    print("✅ Nạp trọng số mô hình thành công!")
+    print("[OK] Nap trong so mo hinh thanh cong!")
     
     # 2. ĐỌC VÀ TRÍCH XUẤT KHUNG HÌNH (FRAMES)
     reader = cv2.VideoCapture(args.video_path)
     num_frames = int(reader.get(cv2.CAP_PROP_FRAME_COUNT))
     
     if num_frames == 0:
-        print("❌ Lỗi: Không đọc được file video (File hỏng hoặc đường dẫn sai).")
+        print("[LOI] Khong doc duoc file video (File hong hoac duong dan sai).")
         return
 
     # Trích xuất rải đều args.num_frames từ video (Ví dụ: 15 frames)
@@ -66,7 +66,7 @@ def main(args):
     frames_processed = 0
     preprocess = xception_default_data_transforms['test']
     
-    print(f"⏳ Đang nội soi {args.num_frames} khung hình rải đều khắp video...\n")
+    print(f"[DANG XU LY] Dang noi soi {args.num_frames} khung hinh...\n")
     
     for idx in frame_idxs:
         reader.set(cv2.CAP_PROP_POS_FRAMES, idx)
@@ -115,7 +115,7 @@ def main(args):
     reader.release()
     
     if frames_processed == 0:
-        print("❌ Không tìm thấy khuôn mặt rõ nét nào trong video để phân tích.")
+        print("[LOI] Khong tim thay khuon mat ro net nao trong video de phan tich.")
         return
         
     # 3. TÍNH TOÁN KẾT QUẢ CHUNG CUỘC BẰNG TRUNG BÌNH CỘNG (AVERAGING)
@@ -127,16 +127,16 @@ def main(args):
     final_confidence = avg_probs[predicted_idx]
     
     print("\n=======================================================")
-    print(" KẾT QUẢ TỔNG HỢP TOÀN VIDEO")
+    print(" KET QUA TONG HOP TOAN VIDEO")
     print("=======================================================")
-    print(f"Số frames hợp lệ đã soi  : {frames_processed} / {args.num_frames}")
-    print(f"Xác suất trung bình      : [Real: {avg_probs[0]:.4f}, FaceSwap: {avg_probs[1]:.4f}, Reenact: {avg_probs[2]:.4f}]")
-    print(f"🚀 NHÃN DỰ ĐOÁN CUỐI CÙNG : {final_label}")
-    print(f"⭐ ĐỘ TIN CẬY (CONFIDENCE): {final_confidence * 100:.2f}%")
+    print(f"So frames hop le da soi  : {frames_processed} / {args.num_frames}")
+    print(f"Xac suat trung binh      : [Real: {avg_probs[0]:.4f}, FaceSwap: {avg_probs[1]:.4f}, Reenact: {avg_probs[2]:.4f}]")
+    print(f"[KET QUA] NHAN DU DOAN CUOI CUNG : {final_label}")
+    print(f"[TIN CAY] DO TIN CAY (CONFIDENCE): {final_confidence * 100:.2f}%")
     print("=======================================================\n")
     
     if final_confidence < 0.6:
-        print("⚠️ Lời khuyên: Độ tin cậy của AI khá thấp. Hãy kiểm tra lại tiền xử lý (Transform) hoặc chất lượng video.")
+        print("[LUU Y] Loi khuyen: Do tin cay cua AI kha thap. Hay kiem tra lai tien xu ly (Transform) hoac chat luong video.")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Script chuẩn để debug API / test video trên Colab")
