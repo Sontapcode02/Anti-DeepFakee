@@ -37,8 +37,8 @@ state = checkpoint.get("state_dict", checkpoint)
 
 new_state = {}
 for k, v in state.items():
-    if k in model.state_dict() and model.state_dict()[k].shape == v.shape:
-        new_state[k] = v
+    name = k[7:] if k.startswith('module.') else k
+    new_state[name] = v
 
 model.load_state_dict(new_state, strict=False)
 model.to(device)

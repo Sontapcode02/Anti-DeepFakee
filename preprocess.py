@@ -12,8 +12,8 @@ def preprocess_rgb(img):
 
     img = cv2.resize(img, (299, 299))
 
-    # BGR -> RGB (QUAN TRỌNG nếu dùng OpenCV)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    # BGR -> RGB (Đã xử lý ở bước crop_face bên main.py nên comment lại để tránh lỗi đảo ngược hệ màu)
+    # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # normalize [0,1]
     img = img.astype(np.float32) / 255.0
