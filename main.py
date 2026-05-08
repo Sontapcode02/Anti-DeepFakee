@@ -8,8 +8,11 @@ import os
 import uuid
 
 from retinaface import RetinaFace
-from model import DeepfakeMultiClassModel
+from network.proposed_model import DeepfakeMultiClassModel
 from preprocess import preprocess_rgb, preprocess_dct
+
+import base64
+from gradcam import GradCAM, apply_colormap_on_image
 
 app = FastAPI()
 
@@ -44,59 +47,80 @@ model.load_state_dict(new_state, strict=False)
 model.to(device)
 model.eval()
 
+# ================= GRAD-CAM =================
+# Hook vào lớp conv4 để tránh lỗi inplace của ReLU(inplace=True) ở layer tiếp theo
+target_layer = model.spatial.model.conv4
+grad_cam = GradCAM(model, target_layer)
+
 
 # ================= FACE DETECTION =================
-def crop_face(frame, scale=1.2):
-    try:
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+def get_boundingbox(face, width, height, scale=1.3, minsize=None):
+    x1, y1, x2, y2 = face
+    size_bb = int(max(x2 - x1, y2 - y1) * scale)
+    if minsize and size_bb < minsize:
+        size_bb = minsize
+    center_x, center_y = (x1 + x2) // 2, (y1 + y2) // 2
+    x1 = max(int(center_x - size_bb // 2), 0)
+    y1 = max(int(center_y - size_bb // 2), 0)
+    size_bb = min(width - x1, size_bb)
+    size_bb = min(height - y1, size_bb)
+    return x1, y1, size_bb
 
-        faces = RetinaFace.detect_faces(rgb)
+def crop_face(frame, scale=1.3):
+    try:
+        height, width = frame.shape[:2]
+        
+        # Nhận diện trên ảnh gốc
+        faces = RetinaFace.detect_faces(frame)
 
         if not isinstance(faces, dict) or len(faces) == 0:
             return None
 
         face = max(faces.values(), key=lambda f: f["score"])
 
-        # ❌ FILTER FACE QUÁ YẾU
         if face["score"] < 0.90:
             return None
 
-        x1, y1, x2, y2 = face["facial_area"]
-
-        w, h = x2 - x1, y2 - y1
-        cx, cy = x1 + w // 2, y1 + h // 2
-
-        nw, nh = int(w * scale), int(h * scale)
-
-        x1 = max(cx - nw // 2, 0)
-        y1 = max(cy - nh // 2, 0)
-        x2 = min(cx + nw // 2, frame.shape[1])
-        y2 = min(cy + nh // 2, frame.shape[0])
-
-        face_crop = frame[y1:y2, x1:x2]
+        x_, y_, size = get_boundingbox(face["facial_area"], width, height, scale=scale)
+        face_crop = frame[y_:y_+size, x_:x_+size]
 
         if face_crop.size == 0:
             return None
 
-        # ✔ FIX QUAN TRỌNG: BGR → RGB
+        # BGR → RGB
         face_crop = cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB)
 
         return face_crop
 
-    except:
+    except Exception as e:
         return None
 
 
 # ================= PREDICT =================
 def predict_frame(img):
     x_rgb = preprocess_rgb(img).to(device)
-    x_dct = preprocess_dct(img).to(device)
 
     with torch.no_grad():
-        out = model(x_rgb, x_dct)
+        out = model(x_rgb)
         prob = torch.softmax(out, dim=1)
 
     return prob
+
+def predict_heatmap(img, target_class=None):
+    x_rgb = preprocess_rgb(img).to(device)
+    cam_mask, out = grad_cam(x_rgb, class_idx=target_class)
+    
+    prob = torch.softmax(out, dim=1)
+    
+    # Overlay heatmap
+    overlay = apply_colormap_on_image(img, cam_mask)
+    
+    # Encode base64
+    overlay_bgr = cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR)
+    _, buffer = cv2.imencode('.jpg', overlay_bgr)
+    heatmap_b64 = base64.b64encode(buffer).decode('utf-8')
+    
+    return prob, heatmap_b64
 
 
 # ================= VIDEO FRAMES =================
@@ -140,7 +164,7 @@ async def predict(file: UploadFile = File(...)):
             if face is None:
                 return {"error": "no face detected"}
 
-            prob = predict_frame(face)
+            prob, heatmap_b64 = predict_heatmap(face)
 
             pred = int(torch.argmax(prob, dim=1))
             conf = float(prob[0][pred])
@@ -148,7 +172,8 @@ async def predict(file: UploadFile = File(...)):
             return {
                 "type": "image",
                 "label": labels[pred],
-                "confidence": conf
+                "confidence": conf,
+                "heatmap": heatmap_b64
             }
 
         # ================= VIDEO =================
@@ -162,13 +187,15 @@ async def predict(file: UploadFile = File(...)):
             frames = extract_frames(temp_path, 10)
 
             probs = []
+            valid_faces = []
 
             for frame in frames:
                 face = crop_face(frame)
 
                 if face is None:
                     continue
-
+                
+                valid_faces.append(face)
                 prob = predict_frame(face)
                 probs.append(prob.cpu().numpy()[0])
 
@@ -179,20 +206,24 @@ async def predict(file: UploadFile = File(...)):
 
             probs = np.array(probs)
 
-            # ✔ FIX: weighted average (QUAN TRỌNG)
-            weights = np.max(probs, axis=1)
-            weights = weights / (weights.sum() + 1e-6)
-
-            avg = np.sum(probs * weights[:, None], axis=0)
+            # Chuyển về trung bình cộng (Mean) giống code train chuẩn
+            avg = np.mean(probs, axis=0)
 
             pred = int(np.argmax(avg))
             conf = float(avg[pred])
+            
+            # Lấy heatmap cho frame có độ tin cậy của nhãn dự đoán cao nhất
+            best_frame_idx = np.argmax(probs[:, pred])
+            best_face = valid_faces[best_frame_idx]
+            
+            _, heatmap_b64 = predict_heatmap(best_face, target_class=pred)
 
             return {
                 "type": "video",
                 "label": labels[pred],
                 "confidence": conf,
-                "frames_used": len(probs)
+                "frames_used": len(probs),
+                "heatmap": heatmap_b64
             }
 
         else:

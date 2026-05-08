@@ -51,8 +51,15 @@
             margin-top: 15px;
             max-width: 100%;
             border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
         }
 
+        .heatmap-title {
+            margin-top: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffeb3b;
+        }
     </style>
 </head>
 <body>
@@ -67,6 +74,8 @@
     <div class="preview" id="preview"></div>
 
     <div class="result" id="result"></div>
+    
+    <div id="heatmapContainer"></div>
 </div>
 
 <script>
@@ -82,8 +91,10 @@ async function uploadFile() {
         return;
     }
 
-    // preview
+    // reset UI
     previewDiv.innerHTML = "";
+    document.getElementById('heatmapContainer').innerHTML = "";
+    
     if (file.type.startsWith("image")) {
         previewDiv.innerHTML = `<img src="${URL.createObjectURL(file)}">`;
     } else if (file.type.startsWith("video")) {
@@ -114,6 +125,16 @@ async function uploadFile() {
             🎯 Confidence: ${(data.confidence * 100).toFixed(2)}% <br>
             🎞 Frames used: ${data.frames_used || 1}
         `;
+
+        if (data.heatmap) {
+            const heatmapContainer = document.getElementById('heatmapContainer');
+            heatmapContainer.innerHTML = `
+                <div class="heatmap-title">🔥 BẢN ĐỒ NHIỆT (GRAD-CAM)</div>
+                <img src="data:image/jpeg;base64,${data.heatmap}" alt="Heatmap">
+            `;
+        } else {
+            document.getElementById('heatmapContainer').innerHTML = "";
+        }
 
     } catch (err) {
         resultDiv.innerHTML = "❌ Lỗi kết nối API";

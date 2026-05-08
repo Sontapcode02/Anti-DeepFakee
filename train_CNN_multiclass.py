@@ -18,11 +18,13 @@ def main(args):
     train_list = args.train_list
     val_list = args.val_list
     epoches = args.epoches
+    start_epoch = args.start_epoch
     batch_size = args.batch_size
     model_name = args.model_name
     model_path = args.model_path
+    output_dir = args.output_dir
     
-    output_path = os.path.join('./output', name)
+    output_path = os.path.join(output_dir, name)
     if not os.path.exists(output_path):
         os.makedirs(output_path, exist_ok=True)
     
@@ -33,8 +35,8 @@ def main(args):
     train_dataset = MyDataset(txt_path=train_list, transform=xception_default_data_transforms['train'])
     val_dataset = MyDataset(txt_path=val_list, transform=xception_default_data_transforms['val'])
     
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=False, num_workers=4)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=True, drop_last=False, num_workers=4)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=False, num_workers=2)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=True, drop_last=False, num_workers=2)
     
     train_dataset_size = len(train_dataset)
     val_dataset_size = len(val_dataset)
@@ -56,7 +58,7 @@ def main(args):
     best_acc = 0.0
     iteration = 0
     
-    for epoch in range(epoches):
+    for epoch in range(start_epoch, epoches):
         print('Epoch {}/{}'.format(epoch+1, epoches))
         print('-'*10)
         
@@ -126,8 +128,10 @@ if __name__ == '__main__':
     parse.add_argument('--val_list', '-vl' , type=str, default = './data_list/FaceSwap_c0_val.txt')
     parse.add_argument('--batch_size', '-bz', type=int, default=32)
     parse.add_argument('--epoches', '-e', type=int, default=20)
+    parse.add_argument('--start_epoch', '-se', type=int, default=0)
     parse.add_argument('--model_name', '-mn', type=str, default='multiclass_model.pkl')
     parse.add_argument('--continue_train', action='store_true')
     parse.add_argument('--model_path', '-mp', type=str, default='')
+    parse.add_argument('--output_dir', '-out', type=str, default='./output', help='Thư mục lưu model')
     args = parse.parse_args()
     main(args)
